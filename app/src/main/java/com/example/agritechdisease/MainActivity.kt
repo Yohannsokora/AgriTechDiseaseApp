@@ -17,7 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,52 +58,52 @@ class MainActivity : ComponentActivity() {
 }
 
 class CameraActivity : ComponentActivity() {
+    private var photoUri: Uri? = null
+    private val imageUris = mutableStateListOf<Uri>()
+
+    private val takePictureLauncher =
+        registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+            if (success) {
+                photoUri?.let {
+                    imageUris.add(it) // Add the captured image to the list
+                }
+            }
+        }
+
+    private val pickImageLauncher =
+        registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+            if (uris.size <= 5) {
+                imageUris.clear()
+                imageUris.addAll(uris)
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val imageUris = mutableStateOf<List<Uri>>(emptyList())
-        val photoUri = mutableStateOf<Uri?>(null)
-
-        val takePictureLauncher =
-            registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-                if (success) {
-                    photoUri.value?.let {
-                        imageUris.value = listOf(it) // Save the captured image
-                    }
-                }
-            }
-
-        val pickImageLauncher =
-            registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-                if (uris.size <= 5) {
-                    imageUris.value = uris
-                }
-            }
 
         setContent {
             AgriTechDiseaseTheme {
                 CameraScreen(
-                    imageUris.value,
-                    onTakePicture = { uri -> takePictureLauncher.launch(uri) }, // Correctly pass launcher
+                    imageUris = imageUris,
+                    onTakePicture = {
+                        val newPhotoUri = createImageFileUri(this) // Create URI before launching
+                        photoUri = newPhotoUri // Assign to photoUri
+                        takePictureLauncher.launch(newPhotoUri) // Launch with a valid URI
+                    },
                     onPickImages = { pickImageLauncher.launch("image/*") }
                 )
             }
         }
     }
-
-    // Helper function to create a file URI for the image
-    private fun createImageFileUri(context: Context): Uri {
-        val file = File(context.filesDir, "captured_image_${System.currentTimeMillis()}.jpg")
-        return FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-    }
 }
 
 
-    // Helper function to create a file URI for the image
-    private fun createImageFileUri(context: Context): Uri {
-        val file = File(context.filesDir, "captured_image_${System.currentTimeMillis()}.jpg")
-        return FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-    }
+// Helper function to create a file URI for the image
+private fun createImageFileUri(context: Context): Uri {
+    val file = File(context.filesDir, "captured_image_${System.currentTimeMillis()}.jpg")
+    return FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+}
+
 
 
 
@@ -193,22 +193,18 @@ fun MainScreen(onScanClick: () -> Unit, onCommonDiseasesClick: () -> Unit) {
 }
 
 
-
-
-
-
 @Composable
-fun CameraScreen(imageUris: List<Uri>, onTakePicture: (Uri) -> Unit, onPickImages: () -> Unit) {
-    val context = LocalContext.current // Get the context
-
-    val photoUri = remember { mutableStateOf<Uri?>(null) }
+fun CameraScreen(imageUris: List<Uri>, onTakePicture: () -> Unit, onPickImages: () -> Unit) {
+    val context = LocalContext.current
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Capture or Upload 5 Images",
+            text = "Capture or Upload an Image",
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold
         )
@@ -225,7 +221,7 @@ fun CameraScreen(imageUris: List<Uri>, onTakePicture: (Uri) -> Unit, onPickImage
                 Text("No Images Selected")
             } else {
                 Image(
-                    painter = rememberAsyncImagePainter(imageUris.first()),
+                    painter = rememberAsyncImagePainter(imageUris.last()), // Show the latest image
                     contentDescription = "Selected Image",
                     modifier = Modifier.fillMaxSize()
                 )
@@ -238,11 +234,7 @@ fun CameraScreen(imageUris: List<Uri>, onTakePicture: (Uri) -> Unit, onPickImage
             horizontalArrangement = Arrangement.SpaceEvenly,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Button(onClick = {
-                val uri = createImageFileUri(context) // Create a file for the image
-                photoUri.value = uri
-                onTakePicture(uri) // Call takePictureLauncher with the correct URI
-            }) {
+            Button(onClick = { onTakePicture() }) {
                 Text("Take Picture")
             }
 
@@ -252,6 +244,10 @@ fun CameraScreen(imageUris: List<Uri>, onTakePicture: (Uri) -> Unit, onPickImage
         }
     }
 }
+
+
+
+
 
 
 @Composable
@@ -266,7 +262,7 @@ fun BottomNavigationBar() {
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
 
-        ) {
+            ) {
             BottomNavItem(icon = R.drawable.plant, label = "Find Crop")
             BottomNavItem(icon = R.drawable.pot, label = "My Crops")
             BottomNavItem(icon = R.drawable.settings, label = "Settings")
