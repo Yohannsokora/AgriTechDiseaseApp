@@ -45,7 +45,7 @@ I found these websites useful in developing this software:
 
 The following items I plan to fix, improve, and/or add to this project in the future:
 
-* [ Improve the Design of the second screen.]
-* [ Include a "Back Button" ]
-* [ Create a folder where the image can be accessed for analysis]
-* [ Implement an Account creation option on the first screen]
+*  Improve the Design of the second screen.
+* Include a "Back Button"
+* Create a folder where the image can be accessed for analysis
+* Implement an Account creation option on the first screen
