@@ -1,11 +1,9 @@
 ## Overview
 
 **Project Title**:
-
-AgritechDisease App
+AgriTech Disease App
 
 **Project Description**:
-
 Create a software capable to Identify diseases in crops.
 
 **Project Goals**:
@@ -15,37 +13,39 @@ Create a software capable to Identify diseases in crops.
 Steps to build and/or run the software:
 
 1. Software development (Develop prototype using external API)
-    * Develop the software using publicly available datasets to identify generic diseases in crops like maize, cassava, Cocoa.
-2. The machine learning training and database creation
+   * Develop the software using publicly available datasets to identify generic diseases
+   * in crops like maize, cassava, Cocoa.
+2. The Machine learning training and database creation.
 
 Instructions for using the software:
 
 1. Open the app
-2. Take or Upload a picture
+2. Take or upload a picture
 3. Run the diagnosis
 4. Get the result
-5. Save it or delete it.
+5. Save or Delete Result
 
 ## Development Environment 
 
 To recreate the development environment, you need the following software and/or libraries with the specified versions:
 
 * Android Studio
-* Kotlin programming language
-* python for data analysis and machine learning (all the library, Scikit-Learn, TensorFlow, Keras, XGBoost, etc)
+* Kotlin Programming Language
+* Python for Data analysis and Machine Learning Libraries
 
 ## Useful Websites to Learn More
 
 I found these websites useful in developing this software:
 
-* [Linkedin Learning](https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=https://www.linkedin.com/learning/&ved=2ahUKEwjZ0Ny06daLAxWz8MkDHW9nPCIQFnoECCYQAQ&usg=AOvVaw0Dx-g9yIXgZ5F3okt-kVuA)
-* [W3schools](https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=https://www.w3schools.com/KOTLIN/index.php&ved=2ahUKEwjCq4TJ6daLAxWDLtAFHViaF3kQFnoECBkQAQ&usg=AOvVaw1qRhNGPsdPHtaeCvinFDwu)
-*
+* [Linkedin Learning](https://www.googleadservices.com/pagead/aclk?sa=L&ai=DChsSEwiGt5m85fiLAxUMFq0GHe7CCS8YACICCAEQABoCcHY&co=1&gclid=EAIaIQobChMIhreZvOX4iwMVDBatBh3uwgkvEAAYASAAEgJ6PvD_BwE&ohost=www.google.com&cid=CAASJuRo3h-oHd8xp-zRJK2TLEgCjqKDAx-qnrmzsG_yta8iLoE3Mdhi&sig=AOD64_3P7QW8tFJ9aVDjm51SfkXBAvQO-A&q&adurl&ved=2ahUKEwiryZO85fiLAxWFOTQIHRnqJ1wQ0Qx6BAgJEAE)
+* [W3schools](https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=https://www.w3schools.com/&ved=2ahUKEwiCmrLZ5fiLAxWlOn0KHZ1mAccQFnoECAkQAQ&usg=AOvVaw3Z63kcF6aawsbVZrfSzalJ)
+
 
 ## Future Work
 
 The following items I plan to fix, improve, and/or add to this project in the future:
 
-* [ ] Implement the "Upload or take a picture" Button
-* [ ] Create the second screen
-
+* [ Improve the Design of the second screen.]
+* [ Include a "Back Button" ]
+* [ Create a folder where the image can be accessed for analysis]
+* [ Implement an Account creation option on the first screen]
