@@ -8,17 +8,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Alignment
@@ -33,9 +35,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.FileProvider
 import coil.compose.rememberAsyncImagePainter
 import com.example.agritechdisease.ui.theme.AgriTechDiseaseTheme
-import kotlinx.coroutines.delay
 import java.io.File
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.runtime.getValue
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,17 +48,135 @@ class MainActivity : ComponentActivity() {
             AgriTechDiseaseTheme {
                 MainScreen(
                     onScanClick = { navigateToCameraScreen() },
-                    onCommonDiseasesClick = { /* TODO: Will Implement it later */ }
+                    onCommonDiseasesClick = { navigateToDiseaseListScreen() }
                 )
             }
         }
     }
 
-    private fun navigateToCameraScreen(){
+    private fun navigateToCameraScreen() {
         val intent = Intent(this, CameraActivity::class.java)
         startActivity(intent)
     }
+
+    private fun navigateToDiseaseListScreen() {
+        val intent = Intent(this, DiseaseListActivity::class.java)
+        startActivity(intent)
+    }
+
 }
+
+// Data class for diseases
+data class RiceDisease(val name: String, val description: String)
+@Composable
+fun DiseaseItem(disease: RiceDisease) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = disease.name, style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = disease.description, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+
+
+class DiseaseListActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            AgriTechDiseaseTheme {
+                DiseaseListScreen(onBackClick = { finish() })
+            }
+        }
+    }
+}
+
+
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DiseaseListScreen(onBackClick: () -> Unit) {
+    val diseaseList = listOf(
+        RiceDisease("Rice Blast", "Fungal disease causing leaf spots."),
+        RiceDisease("Bacterial Leaf Blight", "Bacterial infection causing leaf wilting."),
+        RiceDisease("Sheath Blight", "Fungal disease affecting rice stems."),
+        RiceDisease("Rice Tungro Disease", "Viral disease spread by leafhoppers."),
+        RiceDisease("Brown Spot", "Fungal disease leading to grain discoloration."),
+        RiceDisease("Leaf Scald", "Fungal disease causing elongated lesions on leaves."),
+        RiceDisease("Stem Rot", "Fungal infection leading to blackened rice stems."),
+        RiceDisease("False Smut", "Fungal disease causing greenish spore balls on grains."),
+        RiceDisease("Grain Discoloration", "Multiple pathogens causing discolored rice grains."),
+        RiceDisease("Bakanae Disease", "Fungal disease leading to elongated and weak plants."),
+        RiceDisease("Ufra Disease", "Nematode infection causing twisted leaves and unfilled grains."),
+        RiceDisease("Bacterial Sheath Rot", "Bacterial infection leading to necrotic lesions on leaves."),
+        RiceDisease("Sheath Brown Rot", "Bacterial disease causing sheath browning and rotting."),
+        RiceDisease("Rice Yellow Mottle Virus", "Viral disease causing yellowing and stunted growth."),
+        RiceDisease("Tungro Virus", "Viral disease leading to yellow-orange leaves and plant stunting."),
+        RiceDisease("Rice Grassy Stunt", "Viral disease spread by brown planthopper."),
+        RiceDisease("White Tip Nematode", "Nematode infestation leading to white tips on leaves."),
+        RiceDisease("Bacterial Panicle Blight", "Bacterial infection causing grain sterility."),
+        RiceDisease("Rice Hoja Blanca", "Viral disease spread by planthoppers."),
+        RiceDisease("Rice Stripe Virus", "Viral disease causing yellow streaks on leaves."),
+        RiceDisease("Rice Ragged Stunt", "Viral disease leading to deformed leaves and stunting."),
+        RiceDisease("Black Streaked Dwarf Virus", "Viral disease causing dwarfing and black streaks."),
+        RiceDisease("Rice Orange Leaf Disease", "Viral infection leading to orange-yellow leaves."),
+        RiceDisease("Rice Tungro Bacilliform Virus", "Viral co-infection causing severe stunting."),
+        RiceDisease("Rice Root Knot Nematode", "Nematode infestation causing root galls."),
+        RiceDisease("Rice Wilted Stunt", "Bacterial infection causing leaf wilting and plant death."),
+        RiceDisease("Grassy Stunt", "Viral disease causing excessive tillering."),
+        RiceDisease("White Leaf Streak", "Fungal disease causing white streaks on leaves."),
+        RiceDisease("Bacterial Brown Stripe", "Bacterial infection leading to brown streaks on leaves."),
+        RiceDisease("Rice Dwarf Virus", "Viral disease leading to shortened plants and reduced yield.")
+    )
+
+
+    var searchQuery by remember { mutableStateOf(TextFieldValue("")) }
+    val filteredList = diseaseList.filter {
+        it.name.contains(searchQuery.text, ignoreCase = true)
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Common Rice Diseases", fontSize = 18.sp) },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_arrow_back),
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF2E7D32), titleContentColor = Color.White)
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp)
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                label = { Text("Search disease...") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyColumn {
+                items(filteredList) { disease ->
+                    DiseaseItem(disease)
+                }
+            }
+        }
+    }
+}
+
+
 
 class CameraActivity : ComponentActivity() {
     private var photoUri: Uri? = null
@@ -86,24 +207,17 @@ class CameraActivity : ComponentActivity() {
                 CameraScreen(
                     imageUris = imageUris,
                     onTakePicture = {
-                        val newPhotoUri = createImageFileUri(this) // Create URI before launching
+                        val newPhotoUri = createImageFileUri(this) // Create URI before the launching
                         photoUri = newPhotoUri // Assign to photoUri
                         takePictureLauncher.launch(newPhotoUri) // Launch with a valid URI
                     },
-                    onPickImages = { pickImageLauncher.launch("image/*") }
+                    onPickImages = { pickImageLauncher.launch("image/*") },
+                    onBackClick = {finish()}
                 )
             }
         }
     }
 }
-
-
-// Helper function to create a file URI for the image
-private fun createImageFileUri(context: Context): Uri {
-    val file = File(context.filesDir, "captured_image_${System.currentTimeMillis()}.jpg")
-    return FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-}
-
 
 
 
@@ -193,53 +307,93 @@ fun MainScreen(onScanClick: () -> Unit, onCommonDiseasesClick: () -> Unit) {
 }
 
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CameraScreen(imageUris: List<Uri>, onTakePicture: () -> Unit, onPickImages: () -> Unit) {
+fun CameraScreen(imageUris: List<Uri>, onTakePicture: () -> Unit, onPickImages: () -> Unit, onBackClick: () -> Unit) {
     val context = LocalContext.current
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "Capture or Upload an Image",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Box(
-            modifier = Modifier
-                .size(250.dp)
-                .background(Color.LightGray, shape = RoundedCornerShape(8.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            if (imageUris.isEmpty()) {
-                Text("No Images Selected")
-            } else {
-                Image(
-                    painter = rememberAsyncImagePainter(imageUris.last()), // Show the latest image
-                    contentDescription = "Selected Image",
-                    modifier = Modifier.fillMaxSize()
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Crop Scanner", fontSize = 18.sp) },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_arrow_back),
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFF2E7D32),
+                    titleContentColor = Color.White
                 )
-            }
+            )
         }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Row(
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            modifier = Modifier.fillMaxWidth()
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Button(onClick = { onTakePicture() }) {
-                Text("Take Picture")
+            Text(
+                text = "Capture or Upload an Image",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (imageUris.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .size(250.dp)
+                        .background(Color.LightGray, shape = RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No Images Selected", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                }
+            } else {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(imageUris) { uri ->
+                        Card(
+                            modifier = Modifier.size(150.dp).padding(4.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp)
+                        ) {
+                            Box {
+                                Image(
+                                    painter = rememberAsyncImagePainter(uri),
+                                    contentDescription = "Selected Image",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
-            Button(onClick = onPickImages) {
-                Text("Upload")
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Button(onClick = onTakePicture, shape = RoundedCornerShape(50.dp)) {
+                    Text("📷 Take Picture")
+                }
+
+                Button(onClick = onPickImages, shape = RoundedCornerShape(50.dp)) {
+                    Text("📤 Upload")
+                }
             }
         }
     }
@@ -271,6 +425,9 @@ fun BottomNavigationBar() {
 }
 
 
+
+
+
 @Composable
 fun BottomNavItem(icon: Int, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally)
@@ -289,6 +446,13 @@ fun BottomNavItem(icon: Int, label: String) {
         )
     }
 }
+
+// Helper function to create a file URI for the image
+private fun createImageFileUri(context: Context): Uri {
+    val file = File(context.filesDir, "captured_image_${System.currentTimeMillis()}.jpg")
+    return FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+}
+
 
 
 @Preview(showBackground = true)

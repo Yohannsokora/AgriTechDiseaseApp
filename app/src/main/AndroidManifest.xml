@@ -35,6 +35,11 @@
         <!--Camera Activity -->
         <activity android:name=".CameraActivity" />
 
+        <!--common diseases screen -->
+        <activity android:name=".DiseaseListActivity" />
+
+
+
         <!--FileProvider (Required for Camera) -->
         <provider
             android:name="androidx.core.content.FileProvider"
