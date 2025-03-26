@@ -40,6 +40,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.runtime.getValue
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import android.util.Base64
+import org.json.JSONObject
+import androidx.core.net.toUri
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,15 +73,19 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(this, DiseaseListActivity::class.java)
         startActivity(intent)
     }
-
 }
+
+
+
 
 // Data class for diseases
 data class RiceDisease(val name: String, val description: String)
 @Composable
 fun DiseaseItem(disease: RiceDisease) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -81,6 +95,7 @@ fun DiseaseItem(disease: RiceDisease) {
         }
     }
 }
+
 
 
 
@@ -136,6 +151,7 @@ fun DiseaseListScreen(onBackClick: () -> Unit) {
 
 
     var searchQuery by remember { mutableStateOf(TextFieldValue("")) }
+
     val filteredList = diseaseList.filter {
         it.name.contains(searchQuery.text, ignoreCase = true)
     }
@@ -158,7 +174,10 @@ fun DiseaseListScreen(onBackClick: () -> Unit) {
         }
     ) { paddingValues ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp)
         ) {
             OutlinedTextField(
                 value = searchQuery,
@@ -198,6 +217,7 @@ class CameraActivity : ComponentActivity() {
                 imageUris.addAll(uris)
             }
         }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -307,6 +327,7 @@ fun MainScreen(onScanClick: () -> Unit, onCommonDiseasesClick: () -> Unit) {
 }
 
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CameraScreen(imageUris: List<Uri>, onTakePicture: () -> Unit, onPickImages: () -> Unit, onBackClick: () -> Unit) {
@@ -364,7 +385,9 @@ fun CameraScreen(imageUris: List<Uri>, onTakePicture: () -> Unit, onPickImages: 
                 ) {
                     items(imageUris) { uri ->
                         Card(
-                            modifier = Modifier.size(150.dp).padding(4.dp),
+                            modifier = Modifier
+                                .size(150.dp)
+                                .padding(4.dp),
                             shape = RoundedCornerShape(12.dp),
                             elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp)
                         ) {
@@ -389,14 +412,19 @@ fun CameraScreen(imageUris: List<Uri>, onTakePicture: () -> Unit, onPickImages: 
             ) {
                 Button(onClick = onTakePicture, shape = RoundedCornerShape(50.dp)) {
                     Text("📷 Take Picture")
+
                 }
 
                 Button(onClick = onPickImages, shape = RoundedCornerShape(50.dp)) {
                     Text("📤 Upload")
+
                 }
             }
+            DiagnosisSection(imageUris.firstOrNull())
         }
     }
+
+
 }
 
 
@@ -427,7 +455,6 @@ fun BottomNavigationBar() {
 
 
 
-
 @Composable
 fun BottomNavItem(icon: Int, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally)
@@ -452,6 +479,174 @@ private fun createImageFileUri(context: Context): Uri {
     val file = File(context.filesDir, "captured_image_${System.currentTimeMillis()}.jpg")
     return FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
 }
+
+
+const val API_KEY = "A4cAivvfg7Ub8HwJ6eJnyODaPfKfLWaCUgcfEahfIIVvoDBdM0"
+
+
+// Data class to hold parsed diagnosis result
+data class DiagnosisResult(
+    val name: String,
+    val scientificName: String,
+    val probability: Double,
+    val wikiUrl: String,
+    val treatmentBiological: String?,
+    val treatmentChemical: String?,
+    val treatmentPrevention: String?
+)
+
+
+fun parseDiagnosisResult(json: String): DiagnosisResult? {
+    return try {
+        val root = JSONObject(json)
+        val suggestion = root
+            .getJSONObject("result")
+            .getJSONObject("disease")
+            .getJSONArray("suggestions")
+            .getJSONObject(0)
+
+        val name = suggestion.getString("name")
+        val probability = suggestion.getDouble("probability")
+        val scientificName = suggestion.getString("scientific_name")
+        val wikiUrl = suggestion.optString("wiki_url", "")
+
+        val treatment = suggestion.optJSONObject("details")?.optJSONObject("treatment")
+
+        DiagnosisResult(
+            name = name,
+            scientificName = scientificName,
+            probability = probability,
+            wikiUrl = wikiUrl,
+            treatmentBiological = treatment?.optString("biological"),
+            treatmentChemical = treatment?.optString("chemical"),
+            treatmentPrevention = treatment?.optString("prevention")
+        )
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+
+fun uriToBase64(context: Context, uri: Uri): String? {
+    return context.contentResolver.openInputStream(uri)?.use { input ->
+        val bytes = input.readBytes()
+        Base64.encodeToString(bytes, Base64.NO_WRAP)
+    }
+}
+
+
+suspend fun identifyWithKindwise(base64Image: String): String? {
+    val client = OkHttpClient.Builder()
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
+
+    val json = """
+        {
+            "images": ["data:image/jpeg;base64,$base64Image"],
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "similar_images": true
+        }
+    """.trimIndent()
+
+    val request = Request.Builder()
+        .url("https://crop.kindwise.com/api/v1/identification")
+        .addHeader("Content-Type", "application/json")
+        .addHeader("Api-Key", API_KEY)
+        .post(json.toRequestBody("application/json".toMediaType()))
+        .build()
+
+    val response = client.newCall(request).execute()
+    return response.body?.string()
+}
+
+
+@Composable
+fun ResultCard(result: DiagnosisResult) {
+    Card(
+        modifier = Modifier
+            .padding(16.dp)
+            .fillMaxWidth(),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("🦠 Disease: ${result.name}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("🔬 Scientific Name: ${result.scientificName}", fontSize = 16.sp)
+            Text("📈 Confidence: ${(result.probability * 100).toInt()}%", fontSize = 16.sp)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            result.treatmentBiological?.let {
+                Text("🌱 Biological Treatment: ${'$'}it")
+            }
+            result.treatmentChemical?.let {
+                Text("🧪 Chemical Treatment: ${'$'}it")
+            }
+            result.treatmentPrevention?.let {
+                Text("🛡 Prevention: ${'$'}it")
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (result.wikiUrl.isNotBlank()) {
+                val context = LocalContext.current
+                TextButton(onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW, result.wikiUrl.toUri())
+                    context.startActivity(intent)
+                }) {
+                    Text("🔗 Learn More", color = Color(0xFF2E7D32))
+                }
+            }
+        }
+    }
+}
+
+
+
+
+@Composable
+fun DiagnosisSection(imageUri: Uri?) {
+    val context = LocalContext.current
+    val resultState = remember { mutableStateOf<DiagnosisResult?>(null) }
+    val isLoading = remember { mutableStateOf(false) }
+
+    if (imageUri != null) {
+        Button(
+            onClick = {
+                val base64 = uriToBase64(context, imageUri)
+                if (base64 != null) {
+                    isLoading.value = true
+                    CoroutineScope(Dispatchers.IO).launch {
+                        val json = identifyWithKindwise(base64)
+                        val result = json?.let { parseDiagnosisResult(it) }
+
+                        resultState.value = result
+                        isLoading.value = false
+                    }
+                }
+            },
+            shape = RoundedCornerShape(50.dp),
+            modifier = Modifier.padding(8.dp)
+        ) {
+            Text("🧠 Analyze Disease")
+        }
+
+        if (isLoading.value) {
+            CircularProgressIndicator(modifier = Modifier.padding(16.dp))
+        }
+
+        resultState.value?.let { result ->
+            ResultCard(result)
+        }
+    }
+}
+
+
+
 
 
 
