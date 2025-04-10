@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1056943618697",
+    "project_id": "agritechdiseaseapp",
+    "storage_bucket": "agritechdiseaseapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1056943618697:android:c640ad724c3946dd476458",
+        "android_client_info": {
+          "package_name": "com.example.agritechdisease"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAccqo5tBmsOj1xDvolIRH5y3YqnDZYDZA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

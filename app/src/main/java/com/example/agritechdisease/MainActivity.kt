@@ -4,51 +4,58 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Base64
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.agritechdisease.ui.theme.AgriTechDiseaseTheme
-import java.io.File
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.runtime.getValue
-
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import okhttp3.*
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import android.util.Base64
 import org.json.JSONObject
-import androidx.core.net.toUri
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,24 +63,94 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AgriTechDiseaseTheme {
-                MainScreen(
-                    onScanClick = { navigateToCameraScreen() },
-                    onCommonDiseasesClick = { navigateToDiseaseListScreen() }
-                )
+                AppNavHost()
             }
         }
     }
+}
 
-    private fun navigateToCameraScreen() {
-        val intent = Intent(this, CameraActivity::class.java)
-        startActivity(intent)
+@Composable
+fun AppNavHost() {
+    val navController = rememberNavController()
+    val authViewModel: AuthViewModel = viewModel()
+    val authState by authViewModel.authState.collectAsState()
+    val userEmail = FirebaseAuth.getInstance().currentUser?.email
+
+    LaunchedEffect(authState) {
+        when (authState) {
+            is AuthState.Success -> navController.navigate("main") { popUpTo(0) }
+            is AuthState.Idle -> navController.navigate("login") { popUpTo(0) }
+            else -> {}
+        }
     }
 
-    private fun navigateToDiseaseListScreen() {
-        val intent = Intent(this, DiseaseListActivity::class.java)
-        startActivity(intent)
+    NavHost(
+        navController = navController,
+        startDestination = if (authViewModel.isUserAuthenticated()) "main" else "login"
+    ) {
+        composable("login") {
+            LoginScreen(navController, authViewModel)
+        }
+        composable("register") {
+            RegisterScreen(navController, authViewModel)
+        }
+        composable("main") {
+            MainScreen(
+                onScanClick = { navController.navigate("camera") },
+                onCommonDiseasesClick = { navController.navigate("diseases") },
+                userEmail = userEmail,
+                onSignOut = {
+                    authViewModel.signOut()
+                }
+            )
+        }
+        composable("camera") {
+            CameraScreenWrapper(navController)
+        }
+        composable("diseases") {
+            DiseaseListScreen(onBackClick = { navController.popBackStack() })
+        }
     }
 }
+
+
+@Composable
+fun CameraScreenWrapper(navController: NavHostController) {
+    val context = LocalContext.current
+    val imageUris = remember { mutableStateListOf<Uri>() }
+    var photoUri by remember { mutableStateOf<Uri?>(null) }
+
+    val takePictureLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        if (success) {
+            photoUri?.let { imageUris.add(it) }
+        }
+    }
+
+    val pickImageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.size <= 5) {
+            imageUris.clear()
+            imageUris.addAll(uris)
+        }
+    }
+
+    CameraScreen(
+        imageUris = imageUris,
+        onTakePicture = {
+            val newUri = createImageFileUri(context)
+            photoUri = newUri
+            takePictureLauncher.launch(newUri)
+        },
+        onPickImages = {
+            pickImageLauncher.launch("image/*")
+        },
+        onBackClick = {
+            navController.popBackStack()
+        }
+    )
+}
+
+
+
 
 
 
@@ -240,19 +317,22 @@ class CameraActivity : ComponentActivity() {
 }
 
 
-
-
 @Composable
-fun MainScreen(onScanClick: () -> Unit, onCommonDiseasesClick: () -> Unit) {
+fun MainScreen(
+    onScanClick: () -> Unit,
+    onCommonDiseasesClick: () -> Unit,
+    userEmail: String?,
+    onSignOut: () -> Unit
+) {
     Scaffold(
-        bottomBar = { BottomNavigationBar() } // Ensures the Bottom Navigation Bar stays at the bottom
+        bottomBar = { BottomNavigationBar() }
     ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues) // Prevents content from overlapping the bottom bar
+                .padding(paddingValues)
         ) {
-            // Background Image
+            // Background
             Image(
                 painter = painterResource(id = R.drawable.image4),
                 contentDescription = "Background Image",
@@ -260,20 +340,43 @@ fun MainScreen(onScanClick: () -> Unit, onCommonDiseasesClick: () -> Unit) {
                 contentScale = ContentScale.Crop
             )
 
-            // Semi-transparent overlay for readability
             Surface(
                 color = Color.Black.copy(alpha = 0.4f),
                 modifier = Modifier.fillMaxSize()
             ) {}
 
-            // Main content
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(30.dp),
-                verticalArrangement = Arrangement.Center,
+                verticalArrangement = Arrangement.Top,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                Spacer(modifier = Modifier.height(16.dp))
+                userEmail?.let {
+                    Text(
+                        text = "👋 Welcome, $it",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = onSignOut,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = Color.Red
+                    ),
+                    shape = RoundedCornerShape(50.dp)
+                ) {
+                    Text("Sign Out")
+                }
+
+                Spacer(modifier = Modifier.height(40.dp))
+
                 Text(
                     text = "Welcome to Crops Disease Identifier",
                     style = MaterialTheme.typography.headlineLarge,
@@ -296,12 +399,7 @@ fun MainScreen(onScanClick: () -> Unit, onCommonDiseasesClick: () -> Unit) {
                     ),
                     modifier = Modifier.fillMaxWidth(0.8f)
                 ) {
-                    Text(
-                        text = "Scan Crop",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Serif
-                    )
+                    Text("Scan Crop", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
 
                 Spacer(modifier = Modifier.height(15.dp))
@@ -315,16 +413,15 @@ fun MainScreen(onScanClick: () -> Unit, onCommonDiseasesClick: () -> Unit) {
                     ),
                     modifier = Modifier.fillMaxWidth(0.8f)
                 ) {
-                    Text(
-                        text = "Common diseases",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("Common diseases", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
     }
 }
+
+
+
 
 
 
@@ -496,6 +593,52 @@ data class DiagnosisResult(
 )
 
 
+fun uriToBase64(context: Context, uri: Uri): String? {
+    return context.contentResolver.openInputStream(uri)?.use { input ->
+        val bytes = input.readBytes()
+        Base64.encodeToString(bytes, Base64.NO_WRAP)
+    }
+}
+
+
+
+suspend fun identifyWithKindwise(base64Image: String): String? = withContext(Dispatchers.IO) {
+    val client = OkHttpClient.Builder()
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
+
+    val json = """
+        {
+            "images": ["data:image/jpeg;base64,$base64Image"],
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "similar_images": true
+        }
+    """.trimIndent()
+
+    val request = Request.Builder()
+        .url("https://crop.kindwise.com/api/v1/identification")
+        .addHeader("Content-Type", "application/json")
+        .addHeader("Api-Key", API_KEY)
+        .post(json.toRequestBody("application/json".toMediaType()))
+        .build()
+
+    try {
+        client.newCall(request).execute().use { response ->
+            if (response.isSuccessful) response.body?.string()
+            else null
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+
+
+
 fun parseDiagnosisResult(json: String): DiagnosisResult? {
     return try {
         val root = JSONObject(json)
@@ -528,40 +671,7 @@ fun parseDiagnosisResult(json: String): DiagnosisResult? {
 }
 
 
-fun uriToBase64(context: Context, uri: Uri): String? {
-    return context.contentResolver.openInputStream(uri)?.use { input ->
-        val bytes = input.readBytes()
-        Base64.encodeToString(bytes, Base64.NO_WRAP)
-    }
-}
 
-
-suspend fun identifyWithKindwise(base64Image: String): String? {
-    val client = OkHttpClient.Builder()
-        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-        .build()
-
-    val json = """
-        {
-            "images": ["data:image/jpeg;base64,$base64Image"],
-            "latitude": 0.0,
-            "longitude": 0.0,
-            "similar_images": true
-        }
-    """.trimIndent()
-
-    val request = Request.Builder()
-        .url("https://crop.kindwise.com/api/v1/identification")
-        .addHeader("Content-Type", "application/json")
-        .addHeader("Api-Key", API_KEY)
-        .post(json.toRequestBody("application/json".toMediaType()))
-        .build()
-
-    val response = client.newCall(request).execute()
-    return response.body?.string()
-}
 
 
 @Composable
@@ -611,37 +721,35 @@ fun ResultCard(result: DiagnosisResult) {
 @Composable
 fun DiagnosisSection(imageUri: Uri?) {
     val context = LocalContext.current
-    val resultState = remember { mutableStateOf<DiagnosisResult?>(null) }
-    val isLoading = remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<DiagnosisResult?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    var shouldStartAnalysis by remember { mutableStateOf(false) }
 
     if (imageUri != null) {
         Button(
-            onClick = {
-                val base64 = uriToBase64(context, imageUri)
-                if (base64 != null) {
-                    isLoading.value = true
-                    CoroutineScope(Dispatchers.IO).launch {
-                        val json = identifyWithKindwise(base64)
-                        val result = json?.let { parseDiagnosisResult(it) }
-
-                        resultState.value = result
-                        isLoading.value = false
-                    }
-                }
-            },
+            onClick = { shouldStartAnalysis = true },
             shape = RoundedCornerShape(50.dp),
             modifier = Modifier.padding(8.dp)
         ) {
             Text("🧠 Analyze Disease")
         }
 
-        if (isLoading.value) {
+        if (shouldStartAnalysis) {
+            LaunchedEffect(imageUri) {
+                isLoading = true
+                val base64 = uriToBase64(context, imageUri)
+                val json = base64?.let { identifyWithKindwise(it) }
+                result = json?.let { parseDiagnosisResult(it) }
+                isLoading = false
+                shouldStartAnalysis = false
+            }
+        }
+
+        if (isLoading) {
             CircularProgressIndicator(modifier = Modifier.padding(16.dp))
         }
 
-        resultState.value?.let { result ->
-            ResultCard(result)
-        }
+        result?.let { ResultCard(it) }
     }
 }
 
@@ -650,13 +758,190 @@ fun DiagnosisSection(imageUri: Uri?) {
 
 
 
+sealed class AuthState {
+    object Idle : AuthState()
+    object Loading : AuthState()
+    object Success : AuthState()
+    data class Error(val message: String) : AuthState()
+}
+
+class AuthViewModel : ViewModel() {
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
+    val authState: StateFlow<AuthState> = _authState
+
+    fun signUp(email: String, password: String) {
+        _authState.value = AuthState.Loading
+        auth.createUserWithEmailAndPassword(email, password)
+            .addOnCompleteListener { task ->
+                _authState.value = if (task.isSuccessful) AuthState.Success
+                else AuthState.Error(task.exception?.message ?: "Signup failed")
+            }
+    }
+
+    fun signIn(email: String, password: String) {
+        _authState.value = AuthState.Loading
+        auth.signInWithEmailAndPassword(email, password)
+            .addOnCompleteListener { task ->
+                _authState.value = if (task.isSuccessful) AuthState.Success
+                else AuthState.Error(task.exception?.message ?: "Login failed")
+            }
+    }
+
+    fun signOut() {
+        auth.signOut()
+        _authState.value = AuthState.Idle
+    }
+
+    fun isUserAuthenticated(): Boolean = auth.currentUser != null
+}
+
+@Composable
+fun LoginScreen(
+    navController: NavHostController,
+    viewModel: AuthViewModel = viewModel()
+) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    val authState by viewModel.authState.collectAsState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Login", fontSize = 24.sp)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            label = { Text("Email") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("Password") },
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(onClick = { viewModel.signIn(email, password) }) {
+            Text("Login")
+        }
+
+        TextButton(onClick = { navController.navigate("register") }) {
+            Text("Don't have an account? Register")
+        }
+
+        when (authState) {
+            is AuthState.Loading -> CircularProgressIndicator()
+            is AuthState.Success -> navController.navigate("main") { popUpTo("login") { inclusive = true } }
+            is AuthState.Error -> Text(
+                text = (authState as AuthState.Error).message,
+                color = Color.Red
+            )
+            else -> {}
+        }
+    }
+}
+
+@Composable
+fun RegisterScreen(
+    navController: NavHostController,
+    viewModel: AuthViewModel = viewModel()
+) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    val authState by viewModel.authState.collectAsState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Register", fontSize = 24.sp)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            label = { Text("Email") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("Password") },
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(onClick = { viewModel.signUp(email, password) }) {
+            Text("Register")
+        }
+
+        TextButton(onClick = { navController.navigate("login") }) {
+            Text("Already have an account? Login")
+        }
+
+        when (authState) {
+            is AuthState.Loading -> CircularProgressIndicator()
+            is AuthState.Success -> navController.navigate("main") { popUpTo("register") { inclusive = true } }
+            is AuthState.Error -> Text(
+                text = (authState as AuthState.Error).message,
+                color = Color.Red
+            )
+            else -> {}
+        }
+    }
+}
+
+@Composable
+fun AuthNavHost(startDestination: String = "login") {
+    val navController = rememberNavController()
+    val authViewModel: AuthViewModel = viewModel()
+    val userEmail = FirebaseAuth.getInstance().currentUser?.email
+
+    NavHost(navController = navController, startDestination = startDestination) {
+        composable("login") { LoginScreen(navController) }
+        composable("register") { RegisterScreen(navController) }
+        composable("main") {
+            MainScreen(
+                onScanClick = {},
+                onCommonDiseasesClick = {},
+                userEmail = userEmail,
+                onSignOut = {
+                    authViewModel.signOut()
+                    navController.navigate("login") {
+                        popUpTo("main") { inclusive = true }
+                    }
+                }
+            )
+        }
+    }
+}
 @Preview(showBackground = true)
 @Composable
 fun MainScreenPreview() {
     AgriTechDiseaseTheme {
         MainScreen(
             onScanClick = {},
-            onCommonDiseasesClick = {}
+            onCommonDiseasesClick = {},
+            userEmail = "demo@example.com",
+            onSignOut = {}
         )
     }
 }
+
