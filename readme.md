@@ -45,4 +45,5 @@ I found these websites useful in developing this software:
 
 The following items I plan to fix, improve, and/or add to this project in the future:
 
-* For the next sprint I am only planning on implementing the diseases detection and display the result
+* For the next sprint, I plan to work on the account creation part of the app.
+* Allowing the user to register for an account first (Sign in, and Sign up options) before being able to access the functionality of the app.
